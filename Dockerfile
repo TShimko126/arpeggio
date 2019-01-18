@@ -5,7 +5,7 @@ RUN mkdir /arpeggio
 WORKDIR /arpeggio
 
 COPY requirements.txt /arpeggio
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
 
 COPY config.py /arpeggio
 COPY arpeggio.py /arpeggio
