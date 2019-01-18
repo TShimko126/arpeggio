@@ -27,6 +27,8 @@ import sys
 from collections import OrderedDict
 
 import numpy as np
+import gzip
+import os
 
 #from Bio.PDB import PDBIO
 from Bio.PDB.PDBParser import PDBParser
@@ -668,6 +670,7 @@ Dependencies:
     #parser.add_argument('-ca', '--consider-all', action='store_true', help='Consider all entity/selection atoms, not just solvent accessible ones. If this is set, SASAs won\'t be calculated.')
     #parser.add_argument('-spdb', '--sasa-pdb', action='store_true', help='Store a PDB with atom b-factors set based on boolean solvent accessibility.')
     parser.add_argument('-op', '--output-postfix', type=str, help='Custom text to append to output filename (but before .extension).')
+    parser.add_argument('-od', '--output-dir', type=str, help='Output directory if different from input directory.')
     parser.add_argument('-v', '--verbose', action='store_true', help='Be chatty.')
 
     args = parser.parse_args()
@@ -707,8 +710,21 @@ Dependencies:
 
     # LOAD STRUCTURE (BIOPYTHON)
     pdb_parser = PDBParser()
-    s = pdb_parser.get_structure('structure', pdb_filename)
+    
+    if pdb_filename.endswith('.gz'):
+        with gzip.open(pdb_filename, 'rt') as handle:
+            s = pdb_parser.get_structure('structure', pdb_filename)
+            pdb_filename = pdb_filename.replace('.gz', '')
+    else:
+        s = pdb_parser.get_structure('structure', pdb_filename)
+        
     s_atoms = list(s.get_atoms())
+    
+    # Change pdb_filename to save to new directory
+    if args.output_dir is not None:
+        pdb_dir, input_filename = os.path.split(os.path.abspath(pdb_filename))
+        pdb_file_in = pdb_filename
+        pdb_filename = os.path.join(args.output_dir, input_filename)
 
     logging.info('Loaded PDB structure (BioPython)')
 
