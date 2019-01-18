@@ -28,12 +28,17 @@ from collections import OrderedDict
 
 import numpy as np
 
+import gzip
+import os
+
 #from Bio.PDB import PDBIO
 from Bio.PDB.PDBParser import PDBParser
 from Bio.PDB import NeighborSearch
 from Bio.PDB.Atom import Atom
 from Bio.PDB.Residue import Residue
 from Bio.PDB.Polypeptide import PPBuilder
+from Bio.PDB.MMCIFParser import MMCIFParser
+from Bio.PDB.MMCIF2Dict import MMCIF2Dict
 
 import openbabel as ob
 
@@ -668,6 +673,7 @@ Dependencies:
     #parser.add_argument('-ca', '--consider-all', action='store_true', help='Consider all entity/selection atoms, not just solvent accessible ones. If this is set, SASAs won\'t be calculated.')
     #parser.add_argument('-spdb', '--sasa-pdb', action='store_true', help='Store a PDB with atom b-factors set based on boolean solvent accessibility.')
     parser.add_argument('-op', '--output-postfix', type=str, help='Custom text to append to output filename (but before .extension).')
+    parser.add_argument('-od', '--output-dir', type=str, help='Output directory if different from input directory.')
     parser.add_argument('-v', '--verbose', action='store_true', help='Be chatty.')
 
     args = parser.parse_args()
@@ -706,9 +712,22 @@ Dependencies:
         PROT_ATOM_TYPES['weak hbond acceptor'] = [x for x in PROT_ATOM_TYPES['weak hbond acceptor'] if x not in ('ASNND2', 'GLNNE2', 'HISCE1', 'HISCD2')]
 
     # LOAD STRUCTURE (BIOPYTHON)
-    pdb_parser = PDBParser()
-    s = pdb_parser.get_structure('structure', pdb_filename)
+    # pdb_parser = PDBParser()
+    pdb_parser = MMCIFParser()
+    
+    with gzip.open(pdb_filename, 'rt') as handle:
+        mdict = MMCIF2Dict(handle)
+        
+    with gzip.open(pdb_filename, 'rt') as handle:
+        s = pdb_parser.get_structure('structure', handle)
+        
     s_atoms = list(s.get_atoms())
+    
+    # Change pdb_filename to save to new directory
+    if args.output_dir is not None:
+        pdb_dir, input_filename = os.path.split(os.path.abspath(pdb_filename))
+        pdb_file_in = pdb_filename
+        pdb_filename = os.path.join(args.output_dir, input_filename)
 
     logging.info('Loaded PDB structure (BioPython)')
 
@@ -722,9 +741,9 @@ Dependencies:
 
     # LOAD STRUCTURE (OPENBABEL)
     ob_conv = ob.OBConversion()
-    ob_conv.SetInFormat('pdb')
+    ob_conv.SetInFormat('mmcif')
     mol = ob.OBMol()
-    ob_conv.ReadFile(mol, pdb_filename)
+    ob_conv.ReadFile(mol, pdb_file_in)
 
     logging.info('Loaded PDB structure (OpenBabel)')
 
@@ -733,8 +752,8 @@ Dependencies:
         pdb_filename = pdb_filename.replace('.pdb', args.output_postfix + '.pdb')
 
     # CHECK THAT EACH ATOM HAS A UNIQUE SERIAL NUMBER
-    all_serials = [x.serial_number for x in s_atoms]
-
+    all_serials = mdict['_atom_site.id']
+    
     if len(all_serials) > len(set(all_serials)):
         raise AtomSerialError
 
@@ -742,7 +761,7 @@ Dependencies:
 
     # FIRST MAP PDB SERIAL NUMBERS TO BIOPYTHON ATOMS FOR SPEED LATER
     # THIS AVOIDS LOOPING THROUGH `s_atoms` MANY TIMES
-    serial_to_bio = {x.serial_number: x for x in s_atoms}
+    serial_to_bio = {int(s_num): atom for s_num, atom in zip(all_serials, s_atoms)}
 
     # DICTIONARIES FOR CONVERSIONS
     ob_to_bio = {}
@@ -1215,6 +1234,8 @@ Dependencies:
 
         ob_match = [mol.GetAtom(x) for x in match]
         bio_match = [ob_to_bio[x.GetId()] for x in ob_match]
+        
+        print(bio_match)
 
         # CHECK FOR EXPECTED BEHAVIOUR
         assert len(bio_match) == 4
@@ -1520,7 +1541,7 @@ Dependencies:
     #    logging.info('Calculated per-atom SASA.')
 
     # CALCULATE PAIRWISE CONTACTS
-    with open(pdb_filename.replace('.pdb', '.contacts'), 'wb') as fo: #, open(pdb_filename.replace('.pdb', '.bs_contacts'), 'wb') as afo:
+    with open(pdb_filename.replace('.cif.gz', '.contacts'), 'wb') as fo: #, open(pdb_filename.replace('.pdb', '.bs_contacts'), 'wb') as afo:
 
         if args.headers:
             fo.write('{}\n'.format('\t'.join(
