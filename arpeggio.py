@@ -711,11 +711,11 @@ Dependencies:
     # LOAD STRUCTURE (BIOPYTHON)
     pdb_parser = PDBParser()
     
+    print(pdb_filename)
     if pdb_filename.endswith('.gz'):
         with gzip.open(pdb_filename, 'rt') as handle:
-            s = pdb_parser.get_structure('structure', pdb_filename)
-            pdb_filename = pdb_filename.replace('.gz', '')
-            pdb_filename = pdb_filename.replace('.ent', '.pdb')
+            s = pdb_parser.get_structure('structure', handle)
+
     else:
         s = pdb_parser.get_structure('structure', pdb_filename)
         
@@ -726,6 +726,8 @@ Dependencies:
         pdb_dir, input_filename = os.path.split(os.path.abspath(pdb_filename))
         pdb_file_in = pdb_filename
         pdb_filename = os.path.join(args.output_dir, input_filename)
+        pdb_filename = pdb_filename.replace('.gz', '')
+        pdb_filename = pdb_filename.replace('.ent', '.pdb')
 
     logging.info('Loaded PDB structure (BioPython)')
 
@@ -741,7 +743,7 @@ Dependencies:
     ob_conv = ob.OBConversion()
     ob_conv.SetInFormat('pdb')
     mol = ob.OBMol()
-    ob_conv.ReadFile(mol, pdb_filename)
+    ob_conv.ReadFile(mol, pdb_file_in)
 
     logging.info('Loaded PDB structure (OpenBabel)')
 
