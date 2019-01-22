@@ -31,10 +31,13 @@ import numpy as np
 import gzip
 import os
 
+from itertools import chain
+
 #from Bio.PDB import PDBIO
 from Bio.PDB.PDBParser import PDBParser
 from Bio.PDB import NeighborSearch
 from Bio.PDB.Atom import Atom
+from Bio.PDB.Atom import DisorderedAtom
 from Bio.PDB.Residue import Residue
 from Bio.PDB.Polypeptide import PPBuilder
 from Bio.PDB.MMCIFParser import MMCIFParser
@@ -251,7 +254,7 @@ def selection_parser(selection_list, atom_list):
 
     return list(final_atom_list)
 
-def make_pymol_string(entity, force=False):
+def make_pymol_string(entity):
     '''
     Feed me a BioPython atom or BioPython residue.
 
@@ -261,16 +264,18 @@ def make_pymol_string(entity, force=False):
     chain-identifier/resi-identifier/
     '''
     
-    if isinstance(entity, Atom) or force:
+    if isinstance(entity, Atom) or isinstance(entity, DisorderedAtom):
 
         chain = entity.get_parent().get_parent()
         residue = entity.get_parent()
         atom_name = entity.name
+        alt_pos = entity.get_altloc().strip()
 
     elif isinstance(entity, Residue):
         chain = entity.get_parent()
         residue = entity
         atom_name = ''
+        alt_pos = ''
 
     else:
         raise TypeError('Cannot make a PyMOL string from a non-Atom or Residue object.')
@@ -281,9 +286,10 @@ def make_pymol_string(entity, force=False):
     if residue.id[2] != ' ':
         res_num = str(res_num) + residue.id[2]
 
-    macro =  '{}/{}/{}'.format(chain.id,
-                               res_num,
-                               atom_name)
+    macro =  '{}/{}/{}/{}'.format(chain.id,
+                                res_num,
+                                atom_name,
+                                alt_pos)
 
     return macro
 
@@ -721,7 +727,13 @@ Dependencies:
     with gzip.open(pdb_filename, 'rt') as handle:
         s = pdb_parser.get_structure('structure', handle)
         
-    s_atoms = list(s.get_atoms())
+    s_atoms = []
+    
+    for atom in s.get_atoms():
+        if isinstance(atom, Atom):
+            s_atoms.append(atom)
+        else:
+            s_atoms.extend(atom.disordered_get_list())
     
     # Change pdb_filename to save to new directory
     if args.output_dir is not None:
@@ -756,11 +768,15 @@ Dependencies:
 
     for i, id_num in enumerate(mdict['_atom_site.id']):
         alt_id = mdict['_atom_site.label_alt_id'][i]
-        if alt_id == '.' or alt_id == 'A':
-            chain = mdict['_atom_site.auth_asym_id'][i]
-            res = mdict['_atom_site.auth_seq_id'][i]
-            atom = mdict['_atom_site.auth_atom_id'][i]
-            heir_to_serial['{}/{}/{}'.format(chain, res, atom)] = int(id_num)
+        alt_pos = alt_id if alt_id != '.' else ''
+        
+        chain = mdict['_atom_site.auth_asym_id'][i]
+        res = mdict['_atom_site.auth_seq_id'][i]
+        atom = mdict['_atom_site.auth_atom_id'][i]
+        
+        
+        key = '{}/{}/{}/{}'.format(chain, res, atom, alt_pos)
+        heir_to_serial[key] = int(id_num) - 1
     
     all_serials = [int(s_num) for s_num in mdict['_atom_site.id']]
     
@@ -771,32 +787,36 @@ Dependencies:
 
     # FIRST MAP PDB SERIAL NUMBERS TO BIOPYTHON ATOMS FOR SPEED LATER
     # THIS AVOIDS LOOPING THROUGH `s_atoms` MANY TIMES
-    serial_to_bio = {heir_to_serial[make_pymol_string(atom, force=True)]: atom for atom in s_atoms}
+    serial_to_bio = {heir_to_serial[make_pymol_string(atom)]: atom for atom in s_atoms}
 
     # DICTIONARIES FOR CONVERSIONS
     ob_to_bio = {}
     bio_to_ob = {}
     
-    ob_filtered = [atom for atom in ob.OBMolAtomIter(mol)
-                   if atom.GetId() in serial_to_bio.keys()]
+    ob_filtered = [atom for atom in ob.OBMolAtomIter(mol)]
 
     for ob_atom in ob_filtered:
 
-        serial = ob_atom.GetResidue().GetSerialNum(ob_atom)
+#         serial = ob_atom.GetResidue().GetSerialNum(ob_atom)
         
+        serial = ob_atom.GetId()
 
         # MATCH TO THE BIOPYTHON ATOM BY SERIAL NUMBER
         try:
             biopython_atom = serial_to_bio[serial]
 
         except KeyError:
+            print serial_to_bio
             # ERRORWORTHY IF WE CAN'T MATCH AN OB ATOM TO A BIOPYTHON ONE
+            print serial
+            
             raise OBBioMatchError(serial)
 
         # `Id` IS A UNIQUE AND STABLE ID IN OPENBABEL
         # CAN RECOVER THE ATOM WITH `mol.GetAtomById(id)`
         ob_to_bio[ob_atom.GetId()] = biopython_atom
         bio_to_ob[biopython_atom] = ob_atom.GetId()
+    
 
     logging.info('Mapped OB to BioPython atoms and vice-versa.')
 
@@ -908,7 +928,7 @@ Dependencies:
         for atom in s_atoms:
 #             fo.write('{}\n'.format('\t'.join([str(x) for x in [make_pymol_string(atom), sorted(tuple(atom.atom_types))]])))
             fo.write('{}\n'.format('\t'.join([str(x) for x in
-                                              [make_pymol_string(atom, force=True),
+                                              [make_pymol_string(atom),
                                                elements.symbol(atom.element.capitalize()).number]])))
 
     logging.info('Typed atoms.')
@@ -1901,13 +1921,13 @@ Dependencies:
             # WRITE OUT CONTACT SIFT TO FILE
             if args.selection:
                 if contact_type in ('INTER', 'SELECTION_WATER', 'WATER_WATER'):
-                    fo.write('{}\n'.format('\t'.join([str(x) for x in [make_pymol_string(atom_bgn, force=True), make_pymol_string(atom_end, force=True)] + SIFt + [contact_type]])))
+                    fo.write('{}\n'.format('\t'.join([str(x) for x in [make_pymol_string(atom_bgn), make_pymol_string(atom_end)] + SIFt + [contact_type]])))
 
                 #afo.write('{}\n'.format('\t'.join([str(x) for x in [make_pymol_string(atom_bgn), make_pymol_string(atom_end)] + SIFt + [contact_type]])))
 
             else:
 #                 fo.write('{}\n'.format('\t'.join([str(x) for x in [make_pymol_string(atom_bgn), make_pymol_string(atom_end)] + SIFt + [contact_type]])))
-                fo.write('{}\n'.format('\t'.join([str(x) for x in [make_pymol_string(atom_bgn, force=True), make_pymol_string(atom_end, force=True)] + SIFt])))
+                fo.write('{}\n'.format('\t'.join([str(x) for x in [make_pymol_string(atom_bgn), make_pymol_string(atom_end)] + SIFt])))
 
         logging.info('Calculated pairwise contacts.')
 
