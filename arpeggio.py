@@ -715,6 +715,7 @@ Dependencies:
         with gzip.open(pdb_filename, 'rt') as handle:
             s = pdb_parser.get_structure('structure', pdb_filename)
             pdb_filename = pdb_filename.replace('.gz', '')
+            pdb_filename = pdb_filename.replace('.ent', '.pdb')
     else:
         s = pdb_parser.get_structure('structure', pdb_filename)
         
