@@ -776,25 +776,27 @@ Dependencies:
     # DICTIONARIES FOR CONVERSIONS
     ob_to_bio = {}
     bio_to_ob = {}
+    
+    ob_filtered = [atom for atom in ob.OBMolAtomIter(mol)
+                   if atom.GetId() in serial_to_bio.keys()]
 
-    for ob_atom in ob.OBMolAtomIter(mol):
+    for ob_atom in ob_filtered:
 
         serial = ob_atom.GetResidue().GetSerialNum(ob_atom)
         
-        if serial in serial_to_bio.keys():
 
-            # MATCH TO THE BIOPYTHON ATOM BY SERIAL NUMBER
-            try:
-                biopython_atom = serial_to_bio[serial]
+        # MATCH TO THE BIOPYTHON ATOM BY SERIAL NUMBER
+        try:
+            biopython_atom = serial_to_bio[serial]
 
-            except KeyError:
-                # ERRORWORTHY IF WE CAN'T MATCH AN OB ATOM TO A BIOPYTHON ONE
-                raise OBBioMatchError(serial)
+        except KeyError:
+            # ERRORWORTHY IF WE CAN'T MATCH AN OB ATOM TO A BIOPYTHON ONE
+            raise OBBioMatchError(serial)
 
-            # `Id` IS A UNIQUE AND STABLE ID IN OPENBABEL
-            # CAN RECOVER THE ATOM WITH `mol.GetAtomById(id)`
-            ob_to_bio[ob_atom.GetId()] = biopython_atom
-            bio_to_ob[biopython_atom] = ob_atom.GetId()
+        # `Id` IS A UNIQUE AND STABLE ID IN OPENBABEL
+        # CAN RECOVER THE ATOM WITH `mol.GetAtomById(id)`
+        ob_to_bio[ob_atom.GetId()] = biopython_atom
+        bio_to_ob[biopython_atom] = ob_atom.GetId()
 
     logging.info('Mapped OB to BioPython atoms and vice-versa.')
 
@@ -864,8 +866,7 @@ Dependencies:
                     
                         atom = mol.GetAtom(match)
                         
-                        if atom.GetId() in ob_to_bio.keys():
-                            ob_to_bio[atom.GetId()].atom_types.add(atom_type)
+                        ob_to_bio[atom.GetId()].atom_types.add(atom_type)
 
                 #logging.info('Assigned types: {}'.format(smarts))
 
@@ -913,42 +914,40 @@ Dependencies:
     logging.info('Typed atoms.')
 
     # DETERMINE ATOM VALENCES AND EXPLICIT HYDROGEN COUNTS
-    for ob_atom in ob.OBMolAtomIter(mol):
-        
-        if ob_atom.GetId() in ob_to_bio.keys():
+    for ob_atom in ob_filtered:
 
-            if not input_has_hydrogens:
-                if ob_atom.IsHydrogen():
-                    continue
+        if not input_has_hydrogens:
+            if ob_atom.IsHydrogen():
+                continue
 
-            # `http://openbabel.org/api/2.3/classOpenBabel_1_1OBAtom.shtml`
-            # CURRENT NUMBER OF EXPLICIT CONNECTIONS
-            valence = ob_atom.GetValence()
+        # `http://openbabel.org/api/2.3/classOpenBabel_1_1OBAtom.shtml`
+        # CURRENT NUMBER OF EXPLICIT CONNECTIONS
+        valence = ob_atom.GetValence()
 
-            # MAXIMUM NUMBER OF CONNECTIONS EXPECTED
-            implicit_valence = ob_atom.GetImplicitValence()
+        # MAXIMUM NUMBER OF CONNECTIONS EXPECTED
+        implicit_valence = ob_atom.GetImplicitValence()
 
-            # BOND ORDER
-            bond_order = ob_atom.BOSum()
+        # BOND ORDER
+        bond_order = ob_atom.BOSum()
 
-            # NUMBER OF BOUND HYDROGENS
-            num_hydrogens = ob_atom.ExplicitHydrogenCount()
+        # NUMBER OF BOUND HYDROGENS
+        num_hydrogens = ob_atom.ExplicitHydrogenCount()
 
-            # ELEMENT NUMBER
-            atomic_number = ob_atom.GetAtomicNum()
+        # ELEMENT NUMBER
+        atomic_number = ob_atom.GetAtomicNum()
 
-            # FORMAL CHARGE
-            formal_charge = ob_atom.GetFormalCharge()
+        # FORMAL CHARGE
+        formal_charge = ob_atom.GetFormalCharge()
 
-            
-            bio_atom = ob_to_bio[ob_atom.GetId()]
 
-            bio_atom.valence = valence
-            bio_atom.implicit_valence = implicit_valence
-            bio_atom.num_hydrogens = num_hydrogens
-            bio_atom.bond_order = bond_order
-            bio_atom.atomic_number = atomic_number
-            bio_atom.formal_charge = formal_charge
+        bio_atom = ob_to_bio[ob_atom.GetId()]
+
+        bio_atom.valence = valence
+        bio_atom.implicit_valence = implicit_valence
+        bio_atom.num_hydrogens = num_hydrogens
+        bio_atom.bond_order = bond_order
+        bio_atom.atomic_number = atomic_number
+        bio_atom.formal_charge = formal_charge
 
     logging.info('Determined atom explicit and implicit valences, bond orders, atomic numbers, formal charge and number of bound hydrogens.')
 
@@ -1229,7 +1228,7 @@ Dependencies:
                       'ob_atom_ids': []}
 
         # GET RING ATOMS AND STORE
-        for ob_atom in ob.OBMolAtomIter(mol):
+        for ob_atom in ob_filtered:
 
             if ob_ring.IsMember(ob_atom):
 
@@ -1252,7 +1251,7 @@ Dependencies:
     for e, match in enumerate(matches):
 
         ob_match = [mol.GetAtom(x) for x in match]
-        bio_match = [ob_to_bio[x.GetId()] for x in ob_match if x.GetId() in ob_to_bio.keys()]
+        bio_match = [ob_to_bio[x.GetId()] for x in ob_match]
         
         if bio_match[0].element != 'N':
             print(bio_match)
@@ -1317,7 +1316,7 @@ Dependencies:
 
         constraints = ob.OBFFConstraints()
 
-        for ob_atom in ob.OBMolAtomIter(mol):
+        for ob_atom in ob_filtered:
 
             if not ob_atom.IsHydrogen():
                 constraints.AddAtomConstraint(ob_atom.GetIdx())
@@ -1367,7 +1366,7 @@ Dependencies:
     # ADD HYDROGENS TO BIOPYTHON ATOMS
 
     # ITERATE THROUGH THE OBMOL
-    for atom in ob.OBMolAtomIter(mol):
+    for atom in ob_filtered:
 
         # IF THE ATOM HAS EXPLICIT HYDROGENS
         if atom.ExplicitHydrogenCount() > 0:
