@@ -251,7 +251,7 @@ def selection_parser(selection_list, atom_list):
 
     return list(final_atom_list)
 
-def make_pymol_string(entity):
+def make_pymol_string(entity, force=False):
     '''
     Feed me a BioPython atom or BioPython residue.
 
@@ -260,8 +260,8 @@ def make_pymol_string(entity):
     chain-identifier/resi-identifier/name-identifier
     chain-identifier/resi-identifier/
     '''
-
-    if isinstance(entity, Atom):
+    
+    if isinstance(entity, Atom) or force:
 
         chain = entity.get_parent().get_parent()
         residue = entity.get_parent()
@@ -752,7 +752,17 @@ Dependencies:
         pdb_filename = pdb_filename.replace('.pdb', args.output_postfix + '.pdb')
 
     # CHECK THAT EACH ATOM HAS A UNIQUE SERIAL NUMBER
-    all_serials = mdict['_atom_site.id']
+    heir_to_serial = {}
+
+    for i, id_num in enumerate(mdict['_atom_site.id']):
+        alt_id = mdict['_atom_site.label_alt_id'][i]
+        if alt_id == '.' or alt_id == 'A':
+            chain = mdict['_atom_site.auth_asym_id'][i]
+            res = mdict['_atom_site.auth_seq_id'][i]
+            atom = mdict['_atom_site.auth_atom_id'][i]
+            heir_to_serial['{}/{}/{}'.format(chain, res, atom)] = int(id_num)
+    
+    all_serials = [int(s_num) for s_num in mdict['_atom_site.id']]
     
     if len(all_serials) > len(set(all_serials)):
         raise AtomSerialError
@@ -761,7 +771,7 @@ Dependencies:
 
     # FIRST MAP PDB SERIAL NUMBERS TO BIOPYTHON ATOMS FOR SPEED LATER
     # THIS AVOIDS LOOPING THROUGH `s_atoms` MANY TIMES
-    serial_to_bio = {int(s_num): atom for s_num, atom in zip(all_serials, s_atoms)}
+    serial_to_bio = {heir_to_serial[make_pymol_string(atom, force=True)]: atom for atom in s_atoms}
 
     # DICTIONARIES FOR CONVERSIONS
     ob_to_bio = {}
@@ -770,19 +780,21 @@ Dependencies:
     for ob_atom in ob.OBMolAtomIter(mol):
 
         serial = ob_atom.GetResidue().GetSerialNum(ob_atom)
+        
+        if serial in serial_to_bio.keys():
 
-        # MATCH TO THE BIOPYTHON ATOM BY SERIAL NUMBER
-        try:
-            biopython_atom = serial_to_bio[serial]
+            # MATCH TO THE BIOPYTHON ATOM BY SERIAL NUMBER
+            try:
+                biopython_atom = serial_to_bio[serial]
 
-        except KeyError:
-            # ERRORWORTHY IF WE CAN'T MATCH AN OB ATOM TO A BIOPYTHON ONE
-            raise OBBioMatchError(serial)
+            except KeyError:
+                # ERRORWORTHY IF WE CAN'T MATCH AN OB ATOM TO A BIOPYTHON ONE
+                raise OBBioMatchError(serial)
 
-        # `Id` IS A UNIQUE AND STABLE ID IN OPENBABEL
-        # CAN RECOVER THE ATOM WITH `mol.GetAtomById(id)`
-        ob_to_bio[ob_atom.GetId()] = biopython_atom
-        bio_to_ob[biopython_atom] = ob_atom.GetId()
+            # `Id` IS A UNIQUE AND STABLE ID IN OPENBABEL
+            # CAN RECOVER THE ATOM WITH `mol.GetAtomById(id)`
+            ob_to_bio[ob_atom.GetId()] = biopython_atom
+            bio_to_ob[biopython_atom] = ob_atom.GetId()
 
     logging.info('Mapped OB to BioPython atoms and vice-versa.')
 
@@ -849,9 +861,11 @@ Dependencies:
                 #logging.info('Set reduce matches: {}'.format(smarts))
 
                 for match in matches:
-
-                    atom = mol.GetAtom(match)
-                    ob_to_bio[atom.GetId()].atom_types.add(atom_type)
+                    
+                        atom = mol.GetAtom(match)
+                        
+                        if atom.GetId() in ob_to_bio.keys():
+                            ob_to_bio[atom.GetId()].atom_types.add(atom_type)
 
                 #logging.info('Assigned types: {}'.format(smarts))
 
@@ -879,10 +893,10 @@ Dependencies:
                     if atom_id in atom_ids:
                         atom.atom_types.add(atom_type)
 
-    with open(pdb_filename.replace('.pdb', '.atomtypes'), 'wb') as fo:
+    with open(pdb_filename.replace('.cif.gz', '.atomtypes'), 'wb') as fo:
 
         if args.headers:
-#             fo.write('{}\n'.format('\t'.join(
+#             fo.write('{}\n'.format('\t'.join([str(x) for x in [make_pymol_string(atom), sorted(tuple(atom.atom_types))]])))
 #                 ['atom', 'atom_types']
 #             )))
 
@@ -892,44 +906,49 @@ Dependencies:
 
         for atom in s_atoms:
 #             fo.write('{}\n'.format('\t'.join([str(x) for x in [make_pymol_string(atom), sorted(tuple(atom.atom_types))]])))
-            fo.write('{}\n'.format('\t'.join([str(x) for x in [make_pymol_string(atom), elements.symbol(atom.element).number]])))
+            fo.write('{}\n'.format('\t'.join([str(x) for x in
+                                              [make_pymol_string(atom, force=True),
+                                               elements.symbol(atom.element.capitalize()).number]])))
 
     logging.info('Typed atoms.')
 
     # DETERMINE ATOM VALENCES AND EXPLICIT HYDROGEN COUNTS
     for ob_atom in ob.OBMolAtomIter(mol):
+        
+        if ob_atom.GetId() in ob_to_bio.keys():
 
-        if not input_has_hydrogens:
-            if ob_atom.IsHydrogen():
-                continue
+            if not input_has_hydrogens:
+                if ob_atom.IsHydrogen():
+                    continue
 
-        # `http://openbabel.org/api/2.3/classOpenBabel_1_1OBAtom.shtml`
-        # CURRENT NUMBER OF EXPLICIT CONNECTIONS
-        valence = ob_atom.GetValence()
+            # `http://openbabel.org/api/2.3/classOpenBabel_1_1OBAtom.shtml`
+            # CURRENT NUMBER OF EXPLICIT CONNECTIONS
+            valence = ob_atom.GetValence()
 
-        # MAXIMUM NUMBER OF CONNECTIONS EXPECTED
-        implicit_valence = ob_atom.GetImplicitValence()
+            # MAXIMUM NUMBER OF CONNECTIONS EXPECTED
+            implicit_valence = ob_atom.GetImplicitValence()
 
-        # BOND ORDER
-        bond_order = ob_atom.BOSum()
+            # BOND ORDER
+            bond_order = ob_atom.BOSum()
 
-        # NUMBER OF BOUND HYDROGENS
-        num_hydrogens = ob_atom.ExplicitHydrogenCount()
+            # NUMBER OF BOUND HYDROGENS
+            num_hydrogens = ob_atom.ExplicitHydrogenCount()
 
-        # ELEMENT NUMBER
-        atomic_number = ob_atom.GetAtomicNum()
+            # ELEMENT NUMBER
+            atomic_number = ob_atom.GetAtomicNum()
 
-        # FORMAL CHARGE
-        formal_charge = ob_atom.GetFormalCharge()
+            # FORMAL CHARGE
+            formal_charge = ob_atom.GetFormalCharge()
 
-        bio_atom = ob_to_bio[ob_atom.GetId()]
+            
+            bio_atom = ob_to_bio[ob_atom.GetId()]
 
-        bio_atom.valence = valence
-        bio_atom.implicit_valence = implicit_valence
-        bio_atom.num_hydrogens = num_hydrogens
-        bio_atom.bond_order = bond_order
-        bio_atom.atomic_number = atomic_number
-        bio_atom.formal_charge = formal_charge
+            bio_atom.valence = valence
+            bio_atom.implicit_valence = implicit_valence
+            bio_atom.num_hydrogens = num_hydrogens
+            bio_atom.bond_order = bond_order
+            bio_atom.atomic_number = atomic_number
+            bio_atom.formal_charge = formal_charge
 
     logging.info('Determined atom explicit and implicit valences, bond orders, atomic numbers, formal charge and number of bound hydrogens.')
 
@@ -1233,9 +1252,10 @@ Dependencies:
     for e, match in enumerate(matches):
 
         ob_match = [mol.GetAtom(x) for x in match]
-        bio_match = [ob_to_bio[x.GetId()] for x in ob_match]
+        bio_match = [ob_to_bio[x.GetId()] for x in ob_match if x.GetId() in ob_to_bio.keys()]
         
-        print(bio_match)
+        if bio_match[0].element != 'N':
+            print(bio_match)
 
         # CHECK FOR EXPECTED BEHAVIOUR
         assert len(bio_match) == 4
@@ -1882,13 +1902,13 @@ Dependencies:
             # WRITE OUT CONTACT SIFT TO FILE
             if args.selection:
                 if contact_type in ('INTER', 'SELECTION_WATER', 'WATER_WATER'):
-                    fo.write('{}\n'.format('\t'.join([str(x) for x in [make_pymol_string(atom_bgn), make_pymol_string(atom_end)] + SIFt + [contact_type]])))
+                    fo.write('{}\n'.format('\t'.join([str(x) for x in [make_pymol_string(atom_bgn, force=True), make_pymol_string(atom_end, force=True)] + SIFt + [contact_type]])))
 
                 #afo.write('{}\n'.format('\t'.join([str(x) for x in [make_pymol_string(atom_bgn), make_pymol_string(atom_end)] + SIFt + [contact_type]])))
 
             else:
 #                 fo.write('{}\n'.format('\t'.join([str(x) for x in [make_pymol_string(atom_bgn), make_pymol_string(atom_end)] + SIFt + [contact_type]])))
-                fo.write('{}\n'.format('\t'.join([str(x) for x in [make_pymol_string(atom_bgn), make_pymol_string(atom_end)] + SIFt])))
+                fo.write('{}\n'.format('\t'.join([str(x) for x in [make_pymol_string(atom_bgn, force=True), make_pymol_string(atom_end, force=True)] + SIFt])))
 
         logging.info('Calculated pairwise contacts.')
 
