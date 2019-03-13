@@ -771,7 +771,12 @@ Dependencies:
         alt_pos = alt_id if alt_id != '.' else ''
         
         chain = mdict['_atom_site.auth_asym_id'][i]
+        
         res = mdict['_atom_site.auth_seq_id'][i]
+        
+        if mdict['_atom_site.pdbx_PDB_ins_code'][i] != '?':
+            res = '{}{}'.format(res, mdict['_atom_site.pdbx_PDB_ins_code'][i])
+        
         atom = mdict['_atom_site.auth_atom_id'][i]
         
         
@@ -786,7 +791,7 @@ Dependencies:
     # MAPPING OB ATOMS TO BIOPYTHON ATOMS AND VICE VERSA
 
     # FIRST MAP PDB SERIAL NUMBERS TO BIOPYTHON ATOMS FOR SPEED LATER
-    # THIS AVOIDS LOOPING THROUGH `s_atoms` MANY TIMES
+    # THIS AVOIDS LOOPING THROUGH `s_atoms` MANY TIMES    
     serial_to_bio = {heir_to_serial[make_pymol_string(atom)]: atom for atom in s_atoms}
 
     # DICTIONARIES FOR CONVERSIONS
@@ -796,8 +801,6 @@ Dependencies:
     ob_filtered = [atom for atom in ob.OBMolAtomIter(mol)]
 
     for ob_atom in ob_filtered:
-
-#         serial = ob_atom.GetResidue().GetSerialNum(ob_atom)
         
         serial = ob_atom.GetId()
 
@@ -806,10 +809,7 @@ Dependencies:
             biopython_atom = serial_to_bio[serial]
 
         except KeyError:
-            print serial_to_bio
             # ERRORWORTHY IF WE CAN'T MATCH AN OB ATOM TO A BIOPYTHON ONE
-            print serial
-            
             raise OBBioMatchError(serial)
 
         # `Id` IS A UNIQUE AND STABLE ID IN OPENBABEL
