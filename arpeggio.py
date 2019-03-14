@@ -751,14 +751,13 @@ Dependencies:
         PROT_ATOM_TYPES['weak hbond acceptor'] = [x for x in PROT_ATOM_TYPES['weak hbond acceptor'] if x not in ('ASNND2', 'GLNNE2', 'HISCE1', 'HISCD2')]
 
     # LOAD STRUCTURE (BIOPYTHON)
-<<<<<<< HEAD
     # pdb_parser = PDBParser()
     pdb_parser = MMCIFParser()
     
-    with gzip.open(pdb_filename, 'rt') as handle:
+    with gzip.open(filename, 'rt') as handle:
         mdict = MMCIF2Dict(handle)
         
-    with gzip.open(pdb_filename, 'rt') as handle:
+    with gzip.open(filename, 'rt') as handle:
         s = pdb_parser.get_structure('structure', handle)
         
     s_atoms = []
@@ -771,14 +770,9 @@ Dependencies:
     
     # Change pdb_filename to save to new directory
     if args.output_dir is not None:
-        pdb_dir, input_filename = os.path.split(os.path.abspath(pdb_filename))
-        pdb_file_in = pdb_filename
-        pdb_filename = os.path.join(args.output_dir, input_filename)
-=======
-    bio_parser = PDBParser() if filetype == 'pdb' else MMCIFParser()
-    s = bio_parser.get_structure('structure', filename)
-    s_atoms = list(s.get_atoms())
->>>>>>> 72edd71d75c8f8a07d2baef7aa44e77450773eb5
+        pdb_dir, input_filename = os.path.split(os.path.abspath(filename))
+        pdb_file_in = filename
+        filename = os.path.join(args.output_dir, input_filename)
 
     logging.info('Loaded structure (BioPython)')
 
@@ -792,15 +786,10 @@ Dependencies:
 
     # LOAD STRUCTURE (OPENBABEL)
     ob_conv = ob.OBConversion()
-<<<<<<< HEAD
+
     ob_conv.SetInFormat('mmcif')
     mol = ob.OBMol()
     ob_conv.ReadFile(mol, pdb_file_in)
-=======
-    ob_conv.SetInFormat(filetype)
-    mol = ob.OBMol()
-    ob_conv.ReadFile(mol, filename)
->>>>>>> 72edd71d75c8f8a07d2baef7aa44e77450773eb5
 
     logging.info('Loaded structure (OpenBabel)')
 
@@ -856,6 +845,9 @@ Dependencies:
 
         except KeyError:
             # ERRORWORTHY IF WE CAN'T MATCH AN OB ATOM TO A BIOPYTHON ONE
+            print serial
+            print ob_atom
+            print serial_to_bio.keys()
             raise OBBioMatchError(serial)
 
         # `Id` IS A UNIQUE AND STABLE ID IN OPENBABEL
@@ -960,11 +952,7 @@ Dependencies:
                     if atom_id in atom_ids:
                         atom.atom_types.add(atom_type)
 
-<<<<<<< HEAD
-    with open(pdb_filename.replace('.cif.gz', '.atomtypes'), 'wb') as fo:
-=======
-    with open(rename_output_file(filename, '.atomtypes'), 'wb') as fo:
->>>>>>> 72edd71d75c8f8a07d2baef7aa44e77450773eb5
+    with open(filename.replace('.cif.gz', '.atomtypes'), 'wb') as fo:
 
         if args.headers:
 #             fo.write('{}\n'.format('\t'.join([str(x) for x in [make_pymol_string(atom), sorted(tuple(atom.atom_types))]])))
@@ -1630,11 +1618,7 @@ Dependencies:
     #    logging.info('Calculated per-atom SASA.')
 
     # CALCULATE PAIRWISE CONTACTS
-<<<<<<< HEAD
-    with open(pdb_filename.replace('.cif.gz', '.contacts'), 'wb') as fo: #, open(pdb_filename.replace('.pdb', '.bs_contacts'), 'wb') as afo:
-=======
-    with open(rename_output_file(filename, '.contacts'), 'wb') as fo, open(rename_output_file(filename, '.bs_contacts'), 'wb') as afo:
->>>>>>> 72edd71d75c8f8a07d2baef7aa44e77450773eb5
+    with open(filename.replace('.cif.gz', '.contacts'), 'wb') as fo: #, open(pdb_filename.replace('.pdb', '.bs_contacts'), 'wb') as afo:
 
         if args.headers:
             fo.write('{}\n'.format('\t'.join(
@@ -1985,7 +1969,6 @@ Dependencies:
 
         logging.info('Calculated pairwise contacts.')
 
-<<<<<<< HEAD
 #     # WRITE OUT PER-ATOM SIFTS
 #     with open(pdb_filename.replace('.pdb', '.sift'), 'wb') as fo, open(pdb_filename.replace('.pdb', '.specific.sift'), 'wb') as specific_fo:
 
@@ -2084,223 +2067,12 @@ Dependencies:
 #                                                         atom.actual_polars_water_only
 #                                                         ]
 #                                                        ])))
-=======
-    # WRITE OUT PER-ATOM SIFTS
-    with open(rename_output_file(filename, '.sift'), 'wb') as fo, open(rename_output_file(filename, '.specific.sift'), 'wb') as specific_fo:
-
-        if args.headers:
-            fo.write('{}\n'.format('\t'.join(
-                ['atom',
-                'clash',
-                'covalent',
-                'vdw_clash',
-                'vdw',
-                'proximal',
-                'hbond',
-                'weak_hbond',
-                'xbond',
-                'ionic',
-                'metal_complex',
-                'aromatic',
-                'hydrophobic',
-                'carbonyl',
-                'polar',
-                'weak_polar',
-                'interacting_entities'
-                ]
-            )))
-
-            specific_fo.write('{}\n'.format('\t'.join(
-                ['atom',
-                'clash',
-                'covalent',
-                'vdw_clash',
-                'vdw',
-                'proximal',
-                'hbond',
-                'weak_hbond',
-                'xbond',
-                'ionic',
-                'metal_complex',
-                'aromatic',
-                'hydrophobic',
-                'carbonyl',
-                'polar',
-                'weak_polar',
-                'interacting_entities'
-                ]
-            )))
-
-        for atom in selection_plus:
-
-            fo.write('{}\n'.format('\t'.join([str(x) for x in [make_pymol_string(atom)] + atom.sift])))
-            specific_fo.write('{}\n'.format('\t'.join([str(x) for x in [make_pymol_string(atom)] + atom.sift_inter_only + atom.sift_intra_only + atom.sift_water_only])))
-
-    # WRITE OUT SIFT MATCHING
-    # LIGAND AND BINDING SITE (`selection_plus`)
-    with open(rename_output_file(filename, '.siftmatch'), 'wb') as fo, open(rename_output_file(filename, '.specific.siftmatch'), 'wb') as specific_fo:
-        for atom in selection_plus:
-
-            sift_match = sift_match_base3(atom.potential_fsift, atom.actual_fsift) # WHICH SIFT TO USE?
-
-            sift_match_inter = sift_match_base3(atom.potential_fsift, atom.actual_fsift_inter_only)
-            sift_match_intra = sift_match_base3(atom.potential_fsift, atom.actual_fsift_intra_only)
-            sift_match_water = sift_match_base3(atom.potential_fsift, atom.actual_fsift_water_only)
-
-            human_readable = human_sift_match(sift_match)
-
-            # SUBJECT TO CHANGE
-            fo.write('{}\n'.format('\t'.join([str(x) for x in [make_pymol_string(atom)] + sift_match + [int3(sift_match)] + [human_readable]])))
-
-            specific_fo.write('{}\n'.format('\t'.join([str(x) for x in [make_pymol_string(atom)] +
-                                                       sift_match_inter +
-                                                       [human_sift_match(sift_match_inter)] +
-                                                       sift_match_intra +
-                                                       [human_sift_match(sift_match_intra)] +
-                                                       sift_match_water +
-                                                       [human_sift_match(sift_match_water)]])))
-
-    # WRITE OUT HBONDS/POLAR MATCHING
-    with open(rename_output_file(filename, '.polarmatch'), 'wb') as fo, open(rename_output_file(filename, '.specific.polarmatch'), 'wb') as specific_fo:
-        for atom in selection_plus:
-
-            # SUBJECT TO CHANGE
-            fo.write('{}\n'.format('\t'.join([str(x) for x in [make_pymol_string(atom)] +
-                                              [atom.potential_hbonds,
-                                               atom.potential_polars,
-                                               atom.actual_hbonds,
-                                               atom.actual_polars]
-                                              ])))
-
-            specific_fo.write('{}\n'.format('\t'.join([str(x) for x in [make_pymol_string(atom)] +
-                                                       [atom.potential_hbonds,
-                                                        atom.potential_polars,
-                                                        atom.actual_hbonds_inter_only,
-                                                        atom.actual_hbonds_intra_only,
-                                                        atom.actual_hbonds_water_only,
-                                                        atom.actual_polars_inter_only,
-                                                        atom.actual_polars_intra_only,
-                                                        atom.actual_polars_water_only
-                                                        ]
-                                                       ])))
->>>>>>> 72edd71d75c8f8a07d2baef7aa44e77450773eb5
 
     # RING-RING INTERACTIONS
     # `https://bitbucket.org/blundell/credovi/src/bc337b9191518e10009002e3e6cb44819149980a/credovi/structbio/aromaticring.py?at=default`
     # `https://bitbucket.org/blundell/credovi/src/bc337b9191518e10009002e3e6cb44819149980a/credovi/sql/populate.sql?at=default`
     # `http://marid.bioc.cam.ac.uk/credo/about`
-<<<<<<< HEAD
 #     with open(pdb_filename.replace('.pdb', '.ri'), 'wb') as fo:
-=======
-    with open(rename_output_file(filename, '.ri'), 'wb') as fo:
-
-        if args.headers:
-
-            fo.write('{}\n'.format('\t'.join(
-                ['ring_bgn_id',
-                'ring_bgn_residue',
-                'ring_bgn_centroid',
-                'ring_end_id',
-                'ring_end_residue',
-                'ring_end_centroid',
-                'interaction_type',
-                'residue_interaction',
-                'contact_type'
-                ]
-            )))
-
-        for ring in s.rings:
-
-            ring_key = ring
-            ring = s.rings[ring]
-
-            for ring2 in s.rings:
-
-                ring_key2 = ring2
-                ring2 = s.rings[ring2]
-
-                # CHECK THAT THE RINGS ARE INVOLVED WITH THE SELECTION OR BINDING SITE
-                if ring_key not in selection_plus_ring_ids or ring_key2 not in selection_plus_ring_ids:
-                    continue
-
-                # NO SELFIES
-                if ring_key == ring_key2:
-                    continue
-
-                # CHECK IF INTERACTION IS WITHIN SAME RESIDUE
-                intra_residue = False
-
-                if ring['residue'] == ring2['residue']:
-                    intra_residue = True
-
-                # DETERMINE CONTACT TYPE
-                contact_type = ''
-
-                if not ring_key in selection_ring_ids and not ring_key2 in selection_ring_ids:
-                    contact_type = 'INTRA_NON_SELECTION'
-
-                if ring_key in selection_plus_ring_ids and ring_key2 in selection_plus_ring_ids:
-                    contact_type = 'INTRA_BINDING_SITE'
-
-                if ring_key in selection_ring_ids and ring_key2 in selection_ring_ids:
-                    contact_type = 'INTRA_SELECTION'
-
-                if (ring_key in selection_ring_ids and not ring_key2 in selection_ring_ids) or (ring_key2 in selection_ring_ids and not ring_key in selection_ring_ids):
-                    contact_type = 'INTER'
-
-                # DETERMINE RING-RING DISTANCE
-                distance = np.linalg.norm(ring['center'] - ring2['center'])
-
-                if distance > CONTACT_TYPES['aromatic']['centroid_distance']:
-                    continue
-
-                theta_point = ring['center'] - ring2['center']
-                #iota_point = ring2['center'] - ring['center']
-
-                # N.B.: NOT SURE WHY ADRIAN WAS USING SIGNED, BUT IT SEEMS
-                #       THAT TO FIT THE CRITERIA FOR EACH TYPE OF INTERACTION
-                #       BELOW, SHOULD BE UNSIGNED, I.E. `abs()`
-                dihedral = abs(group_group_angle(ring, ring2, True, True))
-                theta = abs(group_angle(ring, theta_point, True, True))
-
-                #logging.info('Dihedral = {}     Theta = {}'.format(dihedral, theta))
-
-                int_type = ''
-
-                if dihedral <= 30.0 and theta <= 30.0:
-                    int_type = 'FF'
-                elif dihedral <= 30.0 and theta <= 60.0:
-                    int_type = 'OF'
-                elif dihedral <= 30.0 and theta <= 90.0:
-                    int_type = 'EE'
-
-                elif dihedral > 30.0 and dihedral <= 60.0 and theta <= 30.0:
-                    int_type = 'FT'
-                elif dihedral > 30.0 and dihedral <= 60.0 and theta <= 60.0:
-                    int_type = 'OT'
-                elif dihedral > 30.0 and dihedral <= 60.0 and theta <= 90.0:
-                    int_type = 'ET'
-
-                elif dihedral > 60.0 and dihedral <= 90.0 and theta <= 30.0:
-                    int_type = 'FE'
-                elif dihedral > 60.0 and dihedral <= 90.0 and theta <= 60.0:
-                    int_type = 'OE'
-                elif dihedral > 60.0 and dihedral <= 90.0 and theta <= 90.0:
-                    int_type = 'EF'
-
-                # DON'T COUNT INTRA-RESIDUE EDGE-TO-EDGE RING INTERACTIONS
-                # TO AVOID INTRA-HETEROCYCLE INTERACTIONS
-                # POTENTIALLY A BUG IF TWO RINGS ARE SEPARATED BY A LONG ALIPHATIC CHAIN
-                # AND MAKE A GENUINE INTRA EE INTERACTION, BUT ASSUMING THIS IS RARE
-                if intra_residue and int_type == 'EE':
-                    continue
-
-                # OUTPUT INTRA/INTER RESIDUE AS TEXT RATHER THAN BOOLEAN
-                intra_residue_text = 'INTER_RESIDUE'
-
-                if intra_residue:
-                    intra_residue_text = 'INTRA_RESIDUE'
->>>>>>> 72edd71d75c8f8a07d2baef7aa44e77450773eb5
 
 #         if args.headers:
 
@@ -2324,13 +2096,8 @@ Dependencies:
 
 #             for ring2 in s.rings:
 
-<<<<<<< HEAD
 #                 ring_key2 = ring2
 #                 ring2 = s.rings[ring2]
-=======
-    # RINGS AND ATOM-RING INTERACTIONS
-    with open(rename_output_file(filename, '.ari'), 'wb') as fo, open(rename_output_file(filename, '.rings'), 'wb') as ring_fo:
->>>>>>> 72edd71d75c8f8a07d2baef7aa44e77450773eb5
 
 #                 # CHECK THAT THE RINGS ARE INVOLVED WITH THE SELECTION OR BINDING SITE
 #                 if ring_key not in selection_plus_ring_ids or ring_key2 not in selection_plus_ring_ids:
@@ -2558,12 +2325,7 @@ Dependencies:
 #                 # RESIDUE RING-ATOM SIFT
 #                 if contact_type == 'INTER' and not intra_residue:
 
-<<<<<<< HEAD
 #                     for k, i_type in enumerate(('CARBONPI', 'CATIONPI', 'DONORPI', 'HALOGENPI', 'METSULPHURPI')):
-=======
-    # AMIDE-RING INTERACTIONS
-    with open(rename_output_file(filename, '.amri'), 'wb') as fo:
->>>>>>> 72edd71d75c8f8a07d2baef7aa44e77450773eb5
 
 #                         for potential_interaction in potential_interactions:
 
@@ -2662,13 +2424,8 @@ Dependencies:
 #                 if amide_key in selection_amide_ids and ring_key in selection_ring_ids:
 #                     contact_type = 'INTRA_SELECTION'
 
-<<<<<<< HEAD
 #                 if (amide_key in selection_amide_ids and not ring_key in selection_ring_ids) or (ring_key in selection_ring_ids and not amide_key in selection_amide_ids):
 #                     contact_type = 'INTER'
-=======
-    # AMIDE-AMIDE INTERACTIONS
-    with open(rename_output_file(filename, '.amam'), 'wb') as fo:
->>>>>>> 72edd71d75c8f8a07d2baef7aa44e77450773eb5
 
 #                 # DETERMINE AMIDE-RING DISTANCE
 #                 distance = np.linalg.norm(amide['center'] - ring['center'])
@@ -2850,25 +2607,9 @@ Dependencies:
 #         residue.sift_intra_only = [1 if x else 0 for x in residue.integer_sift_intra_only]
 #         residue.sift_water_only = [1 if x else 0 for x in residue.integer_sift_water_only]
 
-<<<<<<< HEAD
 #         # MAINCHAIN/SIDECHAIN SIFTS FOR POLYPEPTIDE RESIDUES
 #         residue.mc_integer_sift = [0] * 15
 #         residue.sc_integer_sift = [0] * 15
-=======
-        residue.ring_atom_inter_sift = [1 if x else 0 for x in residue.ring_atom_inter_integer_sift]
-        residue.atom_ring_inter_sift = [1 if x else 0 for x in residue.atom_ring_inter_integer_sift]
-        residue.mc_atom_ring_inter_sift = [1 if x else 0 for x in residue.mc_atom_ring_inter_integer_sift]
-        residue.sc_atom_ring_inter_sift = [1 if x else 0 for x in residue.sc_atom_ring_inter_integer_sift]
-
-        # FLATTEN AMIDE RELATED SIFTS
-        residue.amide_ring_inter_sift = [1 if x else 0 for x in residue.amide_ring_inter_integer_sift]
-        residue.ring_amide_inter_sift = [1 if x else 0 for x in residue.ring_amide_inter_integer_sift]
-        residue.amide_amide_inter_sift = [1 if x else 0 for x in residue.amide_amide_inter_integer_sift]
-
-    with open(rename_output_file(filename, '.residue_sifts'), 'wb') as fo:
-
-        if args.headers:
->>>>>>> 72edd71d75c8f8a07d2baef7aa44e77450773eb5
 
 #         residue.mc_integer_sift_inter_only = [0] * 15
 #         residue.mc_integer_sift_intra_only = [0] * 15
