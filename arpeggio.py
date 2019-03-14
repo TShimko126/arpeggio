@@ -815,7 +815,8 @@ Dependencies:
         
         
         key = '{}/{}/{}/{}'.format(chain, res, atom, alt_pos)
-        heir_to_serial[key] = int(id_num) - 1
+        heir_to_serial[key] = i
+        print key
     
     all_serials = [int(s_num) for s_num in mdict['_atom_site.id']]
     
@@ -826,7 +827,7 @@ Dependencies:
     # MAPPING OB ATOMS TO BIOPYTHON ATOMS AND VICE VERSA
 
     # FIRST MAP PDB SERIAL NUMBERS TO BIOPYTHON ATOMS FOR SPEED LATER
-    # THIS AVOIDS LOOPING THROUGH `s_atoms` MANY TIMES    
+    # THIS AVOIDS LOOPING THROUGH `s_atoms` MANY TIMES
     serial_to_bio = {heir_to_serial[make_pymol_string(atom)]: atom for atom in s_atoms}
 
     # DICTIONARIES FOR CONVERSIONS
@@ -845,9 +846,6 @@ Dependencies:
 
         except KeyError:
             # ERRORWORTHY IF WE CAN'T MATCH AN OB ATOM TO A BIOPYTHON ONE
-            print serial
-            print ob_atom
-            print serial_to_bio.keys()
             raise OBBioMatchError(serial)
 
         # `Id` IS A UNIQUE AND STABLE ID IN OPENBABEL
