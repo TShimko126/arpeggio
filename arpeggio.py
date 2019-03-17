@@ -892,7 +892,7 @@ Dependencies:
 
         for atom in s_atoms:
 #             fo.write('{}\n'.format('\t'.join([str(x) for x in [make_pymol_string(atom), sorted(tuple(atom.atom_types))]])))
-            fo.write('{}\n'.format('\t'.join([str(x) for x in [make_pymol_string(atom), elements.symbol(atom.element).number]])))
+            fo.write('{}\n'.format('\t'.join([str(x) for x in [make_pymol_string(atom), elements.symbol(atom.element.title()).number]])))
 
     logging.info('Typed atoms.')
 
